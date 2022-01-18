@@ -1,0 +1,6 @@
+{
+    "cpu": {
+	"fqbn": "esp32:esp32:esp32doit-devkit-v1",
+	"port": "serial:///dev/ttyUSB0"
+    }
+}

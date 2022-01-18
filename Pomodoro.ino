@@ -4,6 +4,7 @@
 
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
+#include <Fsm.h>
 
 #define _TIMERINTERRUPT_LOGLEVEL_ 0
 #include <ESP32_New_TimerInterrupt.h>
@@ -21,10 +22,9 @@ Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RESET);
 
 // ESP32 Timer
 ESP32Timer ITimer(1);
-ESP32Timer StatusTimer(2);
 
 // Buttons
-volatile unsigned long last_interrupt_time = 0;
+volatile unsigned long last_interrupt_time = 0L;
 volatile unsigned long interrupt_time;
 #define BUTTON_LEFT GPIO_NUM_5
 #define BUTTON_MIDDLE GPIO_NUM_18
@@ -32,48 +32,52 @@ volatile unsigned long interrupt_time;
 
 // app variables
 int cfg_focus_time = 25;
-int cfg_short_break = 5;
-int cfg_long_break = 15;
+int cfg_break_short_time = 5;
+int cfg_break_long_time = 15;
 int cfg_break_counter = 4;
 
 long break_timer;
-volatile int counter = cfg_focus_time;
-volatile int break_counter = 0;
+volatile int time_counter = cfg_focus_time;
+volatile int focus_counter = 0;
 
-enum State {FOCUS_STBY, FOCUS, FOCUS_PAUSE, BREAK_STBY, BREAK};
-State current_state = FOCUS_STBY;
+// Finite state machine
+// event ids
+#define BUTTON_LEFT_EVENT 1
+#define BUTTON_MIDDLE_EVENT 2
+#define BUTTON_RIGHT_EVENT 3
+#define STATE_FINISHED_EVENT 4
+#define STATE_CLEAR_EVENT 5
 
-bool IRAM_ATTR runClock(void *timerNo) {
-  counter--;
+void clear_on_enter();
+void clear_on_state();
+void clear_on_exit();
+void focus_stdby_on_enter();
+void focus_stdby_on_state();
+void focus_stdby_on_exit();
+void focus_on_enter();
+void focus_on_state();
+void focus_on_exit();
+void focus_pause_on_enter();
+void focus_pause_on_state();
+void focus_pause_on_exit();
+void break_stdby_on_enter();
+void break_stdby_on_state();
+void break_stdby_on_exit();
+void break_on_enter();
+void break_on_state();
+void break_on_exit();
 
-  return true;
-}
+State state_clear(clear_on_enter, &clear_on_state, &clear_on_exit);
+State state_focus_stdby(focus_stdby_on_enter, &focus_stdby_on_state, &focus_stdby_on_exit);
+State state_focus(focus_on_enter, &focus_on_state, &focus_on_exit);
+State state_focus_pause(focus_pause_on_enter, &focus_pause_on_state, &focus_pause_on_exit);
+State state_break_stdby(break_stdby_on_enter, &break_stdby_on_state, &break_stdby_on_exit);
+State state_break(break_on_enter, &break_on_state, &break_on_exit);
+Fsm fsm(&state_clear);
 
-bool IRAM_ATTR checkStatus(void *timerNo) {
-  switch (current_state) {
-  case FOCUS_STBY:
-    break;
-  case FOCUS:
-    if (counter <= 0) {
-      ITimer.stopTimer();
-      counter = cfg_short_break;
-      current_state = BREAK_STBY;
-    }
-    break;
-  case FOCUS_PAUSE:
-    break;
-  case BREAK_STBY:
-    break;
-  case BREAK:
-    if (counter <= 0) {
-      ITimer.stopTimer();
-      counter = cfg_focus_time;
-      current_state = FOCUS_STBY;
-    }
-    break;
-  default:
-    break;
-  }
+// ISR
+bool IRAM_ATTR countDown(void *timerNo) {
+  time_counter--;
 
   return true;
 }
@@ -81,39 +85,7 @@ bool IRAM_ATTR checkStatus(void *timerNo) {
 void IRAM_ATTR push_left() {
   interrupt_time = millis();
   if (interrupt_time - last_interrupt_time > 250) {
-    switch (current_state) {
-    case FOCUS_STBY:
-      counter = cfg_focus_time;
-      ITimer.restartTimer();
-      current_state = FOCUS;
-      break;
-    case FOCUS:
-      break_counter++;
-      ITimer.stopTimer();
-      current_state = BREAK_STBY;
-      break;
-    case FOCUS_PAUSE:
-      break_counter++;
-      current_state = BREAK_STBY;
-      break;
-    case BREAK_STBY:
-      if (break_counter == 4) {
-	counter = cfg_long_break;
-      } else {
-	counter = cfg_short_break;
-      }
-      ITimer.restartTimer();
-      current_state = BREAK;
-      break;
-    case BREAK:
-      if (break_counter == 4) {
-	break_counter = 0;
-      }
-      current_state = FOCUS_STBY;
-      break;
-    default:
-      break;
-    }
+    fsm.trigger(BUTTON_LEFT_EVENT);
   }
   last_interrupt_time = interrupt_time;
 }
@@ -121,51 +93,100 @@ void IRAM_ATTR push_left() {
 void IRAM_ATTR push_middle() {
   interrupt_time = millis();
   if (interrupt_time - last_interrupt_time > 250) {
-    switch (current_state) {
-    case FOCUS_STBY:
-      counter = cfg_focus_time;
-      break;
-    case FOCUS:
-      ITimer.stopTimer();
-      current_state = FOCUS_PAUSE;
-      break;
-    case FOCUS_PAUSE:
-      ITimer.restartTimer();
-      current_state = FOCUS;
-      break;
-    case BREAK_STBY:
-      break;
-    case BREAK:
-      break;
-    default:
-      break;
+    fsm.trigger(BUTTON_MIDDLE_EVENT);
     }
-  }
   last_interrupt_time = interrupt_time;
 }
 
 void IRAM_ATTR push_right() {
   interrupt_time = millis();
   if (interrupt_time - last_interrupt_time > 250) {
-    switch (current_state) {
-    case FOCUS_STBY:
-      counter += 1;
-      break;
-    case FOCUS:
-      break;
-    case FOCUS_PAUSE:
-      break;
-    case BREAK_STBY:
-      break;
-    case BREAK:
-      break;
-    default:
-      break;
-    }
+    fsm.trigger(BUTTON_RIGHT_EVENT);
   }
   last_interrupt_time = interrupt_time;
 }
 
+// FSM callback functions
+void clear_on_enter() {
+  focus_counter = 0;
+}
+
+void clear_on_state() {
+  fsm.trigger(STATE_CLEAR_EVENT);
+}
+
+void clear_on_exit() {
+}
+
+void focus_stdby_on_enter() {
+  time_counter = cfg_focus_time;
+}
+
+void focus_stdby_on_state() {
+}
+
+void focus_stdby_on_exit() {
+}
+
+void focus_on_enter() {
+  ITimer.restartTimer();
+}
+
+void focus_on_state() {
+  if (time_counter == 0) {
+    ITimer.stopTimer();
+    focus_counter++;
+    fsm.trigger(STATE_FINISHED_EVENT);
+  }
+}
+
+void focus_on_exit() {
+  ITimer.stopTimer();
+}
+
+void focus_pause_on_enter() {
+}
+
+void focus_pause_on_state() {
+}
+
+void focus_pause_on_exit() {
+}
+
+void break_stdby_on_enter() {
+  if (focus_counter < 4) {
+    time_counter = cfg_break_short_time;
+  } else {
+    time_counter = cfg_break_long_time;
+  }
+}
+
+void break_stdby_on_state() {
+
+}
+
+void break_stdby_on_exit() {
+}
+
+void break_on_enter() {
+  ITimer.restartTimer();
+}
+
+void break_on_state() {
+  if (time_counter == 0) {
+    ITimer.stopTimer();
+    fsm.trigger(STATE_FINISHED_EVENT);
+  }
+}
+
+void break_on_exit() {
+  if (focus_counter == 4) {
+    focus_counter = 0;
+  }
+  ITimer.stopTimer();
+}
+
+// initial hw setup
 void setup() {
   // serial for initial debug
   Serial.begin(115200);
@@ -182,7 +203,7 @@ void setup() {
   // clear buffer
   display.clearDisplay();
 
-  // setup buttons
+  // setup buttons with interrupts
   pinMode(BUTTON_LEFT, INPUT_PULLUP);
   attachInterrupt(BUTTON_LEFT, push_left, FALLING);
 
@@ -192,16 +213,33 @@ void setup() {
   pinMode(BUTTON_RIGHT, INPUT_PULLUP);
   attachInterrupt(BUTTON_RIGHT, push_right, FALLING);
 
-
   // setup interrupt timer for 1s
-  ITimer.attachInterruptInterval(1000000, runClock);
+  ITimer.attachInterruptInterval(1000000, countDown);
   ITimer.stopTimer();
 
-  // setup interrupt for status timer 50ms
-  StatusTimer.attachInterruptInterval(50000, checkStatus);
+  // FSM transitions
+  fsm.add_transition(&state_clear, &state_focus_stdby, STATE_CLEAR_EVENT, NULL);
+
+  fsm.add_transition(&state_focus_stdby, &state_focus, BUTTON_LEFT_EVENT, NULL);
+  fsm.add_transition(&state_focus_stdby, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+
+  fsm.add_transition(&state_focus, &state_focus_pause, BUTTON_MIDDLE_EVENT, NULL);
+  fsm.add_transition(&state_focus, &state_break_stdby, BUTTON_LEFT_EVENT, NULL);
+  fsm.add_transition(&state_focus, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm.add_transition(&state_focus, &state_break_stdby, STATE_FINISHED_EVENT, NULL);
   
+  fsm.add_transition(&state_focus_pause, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm.add_transition(&state_focus_pause, &state_focus, BUTTON_MIDDLE_EVENT, NULL);
+  fsm.add_transition(&state_focus_pause, &state_break_stdby, BUTTON_LEFT_EVENT, NULL);
+  
+  fsm.add_transition(&state_break_stdby, &state_break, BUTTON_LEFT_EVENT, NULL);
+  fsm.add_transition(&state_break_stdby, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+
+  fsm.add_transition(&state_break, &state_focus_stdby, BUTTON_LEFT_EVENT, NULL);
+  fsm.add_transition(&state_break, &state_focus_stdby, STATE_FINISHED_EVENT, NULL);
+
   // initial counter value
-  counter = cfg_focus_time;
+  time_counter = cfg_focus_time;
 }
 
 void drawDisplay() {
@@ -209,45 +247,13 @@ void drawDisplay() {
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.println(counter);
+  display.println(time_counter);
+  display.println(focus_counter);
   display.display();
 }
 
 void loop() {
-  switch (current_state) {
-  case FOCUS_STBY:
-    Serial.println("STATE: FOCUS_STBY");
-    Serial.println(counter);
-    Serial.println(break_counter);
-    drawDisplay();
-    break;
-  case FOCUS:
-    Serial.println("STATE: FOCUS");
-    Serial.println(counter);
-    Serial.println(break_counter);
-    drawDisplay();
-    break;
-  case FOCUS_PAUSE:
-    Serial.println("STATE: FOCUS_PAUSE");
-    Serial.println(counter);
-    Serial.println(break_counter);
-    drawDisplay();
-    break;
-  case BREAK_STBY:
-    Serial.println("STATE: BREAK_STBY");
-    Serial.println(counter);
-    Serial.println(break_counter);
-    drawDisplay();
-    break;
-  case BREAK:
-    Serial.println("STATE: BREAK");
-    Serial.println(counter);
-    Serial.println(break_counter);
-    drawDisplay();
-    break;
-  default:
-    Serial.println("STATE: default. Invalid state.");
-    break;
-  }
+  fsm.run_machine();
+  drawDisplay();
   delay(40);
 }

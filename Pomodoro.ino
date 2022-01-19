@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <Fsm.h>
+#include <ESPDateTime.h>
 
 #define _TIMERINTERRUPT_LOGLEVEL_ 0
 #include <ESP32_New_TimerInterrupt.h>
@@ -31,13 +32,14 @@ volatile unsigned long interrupt_time;
 #define BUTTON_RIGHT GPIO_NUM_19
 
 // app variables
-int cfg_focus_time = 25;
-int cfg_break_short_time = 5;
-int cfg_break_long_time = 15;
+int cfg_focus_time = 25 * 60;
+int cfg_break_short_time = 5 * 60;
+int cfg_break_long_time = 15 * 60;
 int cfg_break_counter = 4;
 
+
 long break_timer;
-volatile int time_counter = cfg_focus_time;
+volatile time_t time_counter = cfg_focus_time;
 volatile int focus_counter = 0;
 
 // Finite state machine
@@ -247,7 +249,12 @@ void drawDisplay() {
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.println(time_counter);
+  time_t t = time_counter;
+  struct tm *timeinfo;
+  timeinfo = gmtime(&t);
+  char buffer[80];
+  strftime(buffer, 80, "%M:%S", timeinfo);
+  display.println(buffer);
   display.println(focus_counter);
   display.display();
 }

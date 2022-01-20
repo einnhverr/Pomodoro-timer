@@ -317,6 +317,7 @@ void setup() {
   fsm.add_transition(&state_break_stdby, &state_clear, BUTTON_RIGHT_EVENT, NULL);
 
   fsm.add_transition(&state_break, &state_focus_stdby, BUTTON_LEFT_EVENT, NULL);
+  fsm.add_transition(&state_break, &state_clear, BUTTON_RIGHT_EVENT, NULL);
   fsm.add_transition(&state_break, &state_focus_stdby, STATE_FINISHED_EVENT, NULL);
 
   // initial counter value

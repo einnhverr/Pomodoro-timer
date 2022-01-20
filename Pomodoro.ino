@@ -40,7 +40,7 @@ int cfg_break_counter = 4;
 enum Progress {CLEAR, FOCUS_STDBY, FOCUS, FOCUS_PAUSE, BREAK_STDBY, BREAK};
 Progress progress;
 
-long break_timer;
+// time with 1s resolution
 volatile time_t time_counter = cfg_focus_time;
 volatile int focus_counter = 0;
 
@@ -119,25 +119,6 @@ static const uint8_t pomodoro_bmp[] = {
 #define STATE_FINISHED_EVENT 4
 #define STATE_CLEAR_EVENT 5
 
-void clear_on_enter();
-void clear_on_state();
-void clear_on_exit();
-void focus_stdby_on_enter();
-void focus_stdby_on_state();
-void focus_stdby_on_exit();
-void focus_on_enter();
-void focus_on_state();
-void focus_on_exit();
-void focus_pause_on_enter();
-void focus_pause_on_state();
-void focus_pause_on_exit();
-void break_stdby_on_enter();
-void break_stdby_on_state();
-void break_stdby_on_exit();
-void break_on_enter();
-void break_on_state();
-void break_on_exit();
-
 State state_clear(clear_on_enter, &clear_on_state, &clear_on_exit);
 State state_focus_stdby(focus_stdby_on_enter, &focus_stdby_on_state, &focus_stdby_on_exit);
 State state_focus(focus_on_enter, &focus_on_state, &focus_on_exit);
@@ -181,6 +162,8 @@ void IRAM_ATTR push_right() {
 void clear_on_enter() {
   progress = CLEAR;
   focus_counter = 0;
+  // initial counter value
+  time_counter = cfg_focus_time;
 }
 
 void clear_on_state() {
@@ -238,7 +221,6 @@ void break_stdby_on_enter() {
 }
 
 void break_stdby_on_state() {
-
 }
 
 void break_stdby_on_exit() {
@@ -319,9 +301,6 @@ void setup() {
   fsm.add_transition(&state_break, &state_focus_stdby, BUTTON_LEFT_EVENT, NULL);
   fsm.add_transition(&state_break, &state_clear, BUTTON_RIGHT_EVENT, NULL);
   fsm.add_transition(&state_break, &state_focus_stdby, STATE_FINISHED_EVENT, NULL);
-
-  // initial counter value
-  time_counter = cfg_focus_time;
 }
 
 void drawDisplay() {

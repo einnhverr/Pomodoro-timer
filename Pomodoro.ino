@@ -307,6 +307,7 @@ void drawDisplay() {
   display.clearDisplay();
   int offset = display.width()/8;
   drawTimer(offset*2+2, 18);
+  drawSessionCounter(offset*4, 0, focus_counter);
   switch (progress) {
   case CLEAR:
     break;
@@ -395,6 +396,21 @@ void drawPauseButton(int x, int y, int size) {
   display.drawCircle(x, y, size, WHITE);
   display.fillRect(x-(int)offset, y-(int)offset*2, (int)width, (int)height, WHITE);
   display.fillRect(x+(int)offset, y-(int)offset*2, (int)width, (int)height, WHITE);
+}
+
+void drawSessionCounter(int x, int y, int sessionNo) {
+  int width, height, radius, iteration;
+  width = 12;
+  height = 10;
+  radius = 2;
+  iteration = width + 5;
+  display.drawRoundRect(x, y, width, height, radius, WHITE);
+  display.drawRoundRect(x+iteration*1, y, width, height, radius, WHITE);
+  display.drawRoundRect(x+iteration*2, y, width, height, radius, WHITE);
+  display.drawRoundRect(x+iteration*3, y, width, height, radius, WHITE);
+  for (int i = 0; i < sessionNo; ++i) {
+    display.fillRoundRect(x+(iteration*i), y, width, height, radius, WHITE);
+  }
 }
 
 void loop() {

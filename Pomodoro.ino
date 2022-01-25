@@ -123,7 +123,8 @@ static const uint8_t pomodoro_bmp[] = {
 #define BUTTON_MIDDLE_EVENT 2
 #define BUTTON_RIGHT_EVENT 3
 #define STATE_FINISHED_EVENT 4
-#define STATE_CLEAR_EVENT 5
+#define STATE_INIT_EVENT 5
+#define STATE_CLEAR_EVENT BUTTON_RIGHT_EVENT
 
 State state_clear(clear_on_enter, &clear_on_state, &clear_on_exit);
 State state_focus_stdby(focus_stdby_on_enter, &focus_stdby_on_state, &focus_stdby_on_exit);
@@ -187,7 +188,7 @@ void clear_on_enter() {
 }
 
 void clear_on_state() {
-  fsm_timer.trigger(STATE_CLEAR_EVENT);
+  fsm_timer.trigger(STATE_INIT_EVENT);
 }
 
 void clear_on_exit() {
@@ -405,25 +406,25 @@ void setup() {
 
   // FSM transitions
   // timer transitions
-  fsm_timer.add_transition(&state_clear, &state_focus_stdby, STATE_CLEAR_EVENT, NULL);
+  fsm_timer.add_transition(&state_clear, &state_focus_stdby, STATE_INIT_EVENT, NULL);
 
   fsm_timer.add_transition(&state_focus_stdby, &state_focus, BUTTON_LEFT_EVENT, NULL);
-  fsm_timer.add_transition(&state_focus_stdby, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm_timer.add_transition(&state_focus_stdby, &state_clear, STATE_CLEAR_EVENT, NULL);
 
   fsm_timer.add_transition(&state_focus, &state_focus_pause, BUTTON_MIDDLE_EVENT, NULL);
   fsm_timer.add_transition(&state_focus, &state_break_stdby, BUTTON_LEFT_EVENT, NULL);
-  fsm_timer.add_transition(&state_focus, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm_timer.add_transition(&state_focus, &state_clear, STATE_CLEAR_EVENT, NULL);
   fsm_timer.add_transition(&state_focus, &state_break_stdby, STATE_FINISHED_EVENT, NULL);
 
-  fsm_timer.add_transition(&state_focus_pause, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm_timer.add_transition(&state_focus_pause, &state_clear, STATE_CLEAR_EVENT, NULL);
   fsm_timer.add_transition(&state_focus_pause, &state_focus, BUTTON_MIDDLE_EVENT, NULL);
   fsm_timer.add_transition(&state_focus_pause, &state_break_stdby, BUTTON_LEFT_EVENT, NULL);
   
   fsm_timer.add_transition(&state_break_stdby, &state_break, BUTTON_LEFT_EVENT, NULL);
-  fsm_timer.add_transition(&state_break_stdby, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm_timer.add_transition(&state_break_stdby, &state_clear, STATE_CLEAR_EVENT, NULL);
 
   fsm_timer.add_transition(&state_break, &state_focus_stdby, BUTTON_LEFT_EVENT, NULL);
-  fsm_timer.add_transition(&state_break, &state_clear, BUTTON_RIGHT_EVENT, NULL);
+  fsm_timer.add_transition(&state_break, &state_clear, STATE_CLEAR_EVENT, NULL);
   fsm_timer.add_transition(&state_break, &state_focus_stdby, STATE_FINISHED_EVENT, NULL);
 
   // ringled transitions

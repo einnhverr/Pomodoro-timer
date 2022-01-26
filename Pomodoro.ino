@@ -38,9 +38,9 @@ volatile unsigned long interrupt_time;
 #define BUTTON_RIGHT GPIO_NUM_19
 
 // app variables
-int cfg_focus_time = 60;//25 * 60;
-int cfg_break_short_time = 12;//5 * 60;
-int cfg_break_long_time = 36;//15 * 60;
+int cfg_focus_time = 25 * 60;
+int cfg_break_short_time = 5 * 60;
+int cfg_break_long_time = 15 * 60;
 int cfg_break_counter = 4;
 enum Progress {CLEAR, FOCUS_STDBY, FOCUS, FOCUS_PAUSE, BREAK_STDBY, BREAK};
 Progress progress;
